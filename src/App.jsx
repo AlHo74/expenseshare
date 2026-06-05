@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { supabase } from './supabase'
+import { useState, useEffect, useCallback } from 'react'
+import { getExpenses } from './api'
 import BalanceBanner from './components/BalanceBanner'
 import AddExpenseForm from './components/AddExpenseForm'
 import ExpenseHistory from './components/ExpenseHistory'
@@ -16,40 +16,33 @@ export default function App() {
   const [showSettleUp, setShowSettleUp] = useState(false)
   const [activeTab, setActiveTab] = useState('balance')
 
-  useEffect(() => {
-    fetchExpenses()
-
-    const channel = supabase
-      .channel('expenses-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => {
-        fetchExpenses()
-      })
-      .subscribe()
-
-    return () => supabase.removeChannel(channel)
+  const fetchExpenses = useCallback(async () => {
+    try {
+      const data = await getExpenses()
+      setExpenses(data)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  async function fetchExpenses() {
-    const { data, error } = await supabase
-      .from('expenses')
-      .select('*')
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false })
-
-    if (!error) setExpenses(data || [])
-    setLoading(false)
-  }
+  useEffect(() => {
+    fetchExpenses()
+    // Polling alle 5 Sekunden für Live-Updates zwischen Alex & Karin
+    const interval = setInterval(fetchExpenses, 5000)
+    return () => clearInterval(interval)
+  }, [fetchExpenses])
 
   // positive = Karin owes Alex, negative = Alex owes Karin
   function calculateBalance() {
     let balance = 0
     for (const exp of expenses) {
       if (exp.is_settlement) {
-        // paid_by = person who paid the other back
-        if (exp.paid_by === 'karin') balance += exp.amount
-        else balance -= exp.amount
+        if (exp.paid_by === 'karin') balance += Number(exp.amount)
+        else balance -= Number(exp.amount)
       } else {
-        const owedAmount = exp.amount * exp.split
+        const owedAmount = Number(exp.amount) * Number(exp.split)
         if (exp.paid_by === 'alex') balance += owedAmount
         else balance -= owedAmount
       }
@@ -130,10 +123,10 @@ export default function App() {
 function BalanceBreakdown({ expenses }) {
   const alexPaid = expenses
     .filter(e => !e.is_settlement && e.paid_by === 'alex')
-    .reduce((sum, e) => sum + e.amount, 0)
+    .reduce((sum, e) => sum + Number(e.amount), 0)
   const karinPaid = expenses
     .filter(e => !e.is_settlement && e.paid_by === 'karin')
-    .reduce((sum, e) => sum + e.amount, 0)
+    .reduce((sum, e) => sum + Number(e.amount), 0)
 
   const recent = expenses.slice(0, 5)
 
@@ -187,7 +180,7 @@ export function ExpenseRow({ expense }) {
   const payerLabel = expense.paid_by === 'alex' ? 'Alex' : 'Karin'
   const splitLabel = expense.is_settlement
     ? 'Ausgleich'
-    : expense.split === 1
+    : Number(expense.split) === 1
     ? '100% alleine'
     : '50/50'
 

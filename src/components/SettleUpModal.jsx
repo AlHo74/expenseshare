@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { supabase } from '../supabase'
+import { createExpense } from '../api'
 import { Modal } from './AddExpenseForm'
 import { fmt } from '../App'
 
 export default function SettleUpModal({ balance, onClose, onSaved }) {
   const today = new Date().toISOString().split('T')[0]
 
-  // Suggest who should pay and how much
   const absBalance = Math.abs(balance)
   const suggestedPayer = balance > 0 ? 'karin' : 'alex'
   const suggestedPayerLabel = suggestedPayer === 'karin' ? 'Karin' : 'Alex'
@@ -34,19 +33,22 @@ export default function SettleUpModal({ balance, onClose, onSaved }) {
     setSaving(true)
     setError(null)
 
-    const { error: err } = await supabase.from('expenses').insert({
-      paid_by: form.paid_by,
-      amount,
-      category: 'Ausgleich',
-      description: 'Ausgleichszahlung',
-      date: form.date,
-      split: 1,
-      is_settlement: true,
-    })
-
-    setSaving(false)
-    if (err) setError(err.message)
-    else onSaved()
+    try {
+      await createExpense({
+        paid_by: form.paid_by,
+        amount,
+        category: 'Ausgleich',
+        description: 'Ausgleichszahlung',
+        date: form.date,
+        split: 1,
+        is_settlement: true,
+      })
+      onSaved()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -62,7 +64,6 @@ export default function SettleUpModal({ balance, onClose, onSaved }) {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Who pays back */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Wer zahlt zurück?</label>
           <div className="grid grid-cols-2 gap-2">
@@ -83,7 +84,6 @@ export default function SettleUpModal({ balance, onClose, onSaved }) {
           </div>
         </div>
 
-        {/* Amount */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Betrag (€)</label>
           <input
@@ -98,7 +98,6 @@ export default function SettleUpModal({ balance, onClose, onSaved }) {
           />
         </div>
 
-        {/* Date */}
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">Datum</label>
           <input

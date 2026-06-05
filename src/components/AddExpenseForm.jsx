@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '../supabase'
+import { createExpense } from '../api'
 
 const CATEGORIES = ['Lebensmittel', 'Kind', 'Haushalt', 'Freizeit', 'Sonstiges']
 
@@ -32,19 +32,22 @@ export default function AddExpenseForm({ onClose, onSaved }) {
     setSaving(true)
     setError(null)
 
-    const { error: err } = await supabase.from('expenses').insert({
-      paid_by: form.paid_by,
-      amount,
-      category: form.category,
-      description: form.description.trim(),
-      date: form.date,
-      split: parseFloat(form.split),
-      is_settlement: false,
-    })
-
-    setSaving(false)
-    if (err) setError(err.message)
-    else onSaved()
+    try {
+      await createExpense({
+        paid_by: form.paid_by,
+        amount,
+        category: form.category,
+        description: form.description.trim(),
+        date: form.date,
+        split: parseFloat(form.split),
+        is_settlement: false,
+      })
+      onSaved()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (

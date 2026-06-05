@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '../supabase'
+import { deleteExpense } from '../api'
 import { ExpenseRow } from '../App'
 
 const CATEGORIES = ['Alle', 'Lebensmittel', 'Kind', 'Haushalt', 'Freizeit', 'Sonstiges', 'Ausgleich']
@@ -24,9 +24,14 @@ export default function ExpenseHistory({ expenses, onDelete }) {
     }
     setDeletingId(id)
     setConfirmDeleteId(null)
-    await supabase.from('expenses').delete().eq('id', id)
-    setDeletingId(null)
-    onDelete()
+    try {
+      await deleteExpense(id)
+      onDelete()
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -76,7 +81,6 @@ export default function ExpenseHistory({ expenses, onDelete }) {
             {filtered.map(exp => (
               <div key={exp.id} className="relative group">
                 <ExpenseRow expense={exp} />
-                {/* Delete button */}
                 <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => handleDelete(exp.id)}
